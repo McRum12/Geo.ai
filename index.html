@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometry AI Sketchpad</title>
+    <!-- 1. Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. Load Google Font (Inter) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- 3. Configure Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'brand-blue': '#2196F3',
+                        'brand-blue-dark': '#1976D2',
+                        'brand-green': '#4CAF50',
+                        'brand-green-dark': '#388E3C',
+                    }
+                },
+            },
+        }
+    </script>
+
+    <!-- 4. Custom Styles -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+        }
+
+        /* Canvas styles */
+        #geometry-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none; /* Disable browser gestures */
+        }
+
+        /* Custom scrollbar for panels */
+        #output-content::-webkit-scrollbar,
+        #object-panel-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        #output-content::-webkit-scrollbar-track,
+        #object-panel-list::-webkit-scrollbar-track {
+            background: #2d3748; /* gray-800 */
+        }
+        #output-content::-webkit-scrollbar-thumb,
+        #object-panel-list::-webkit-scrollbar-thumb {
+            background: #4a5568; /* gray-600 */
+            border-radius: 4px;
+        }
+        #output-content::-webkit-scrollbar-thumb:hover,
+        #object-panel-list::-webkit-scrollbar-thumb:hover {
+            background: #718096; /* gray-500 */
+        }
+
+        /* Tooltip styles */
+        [data-tooltip] {
+            position: relative;
+            cursor: pointer;
+        }
+        [data-tooltip]:before {
+            content: attr(data-tooltip);
+            position: absolute;
+            opacity: 0;
+            visibility: hidden;
+            background-color: #1a202c; /* gray-900 */
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            left: 110%;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: opacity 0.2s, visibility 0.2s;
+            z-index: 10;
+        }
+        [data-tooltip-right]:before {
+            left: auto;
+            right: 110%;
+        }
+        
+        /* Active tool button style */
+        .tool-btn.active {
+            background-color: #2196F3; /* brand-blue */
+            color: white;
+        }
+        .tool-btn {
+            transition: all 0.15s ease-in-out;
+        }
+        .tool-btn:hover:not(.active) {
+            background-color: #4a5568; /* gray-600 */
+        }
+        /* Disabled button style */
+        .tool-btn:disabled, .tool-btn[disabled] {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background-color: #374151; /* gray-700 */
+        }
+        .tool-btn:disabled:hover, .tool-btn[disabled]:hover {
+            background-color: #374151; /* gray-700 */
+        }
+
+        /* Sidebar transitions */
+        #sidebar-panel {
+            transition: transform 0.3s ease-in-out;
+        }
+        #sidebar-panel.hidden {
+            transform: translateX(100%);
+        }
+        
+        /* Tab button styles */
+        .tab-btn {
+            flex: 1;
+            padding: 0.75rem 0.5rem;
+            font-weight: 500;
+            color: #9CA3AF; /* gray-400 */
+            background-color: #374151; /* gray-700 */
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover {
+            background-color: #4B5563; /* gray-600 */
+            color: #E5E7EB; /* gray-200 */
+        }
+        .tab-btn.active {
+            color: white;
+            background-color: #4B5563; /* gray-600 */
+            border-bottom-color: #2196F3; /* brand-blue */
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100 flex h-screen w-screen overflow-hidden">
+
+    <!-- ============================================= -->
+    <!-- Toolbar (Left Side) -->
+    <!-- ============================================= -->
+    <aside class="w-20 md:w-24 bg-gray-800 p-3 flex flex-col items-center space-y-3 shadow-lg z-10 overflow-y-auto">
+        <h1 class="text-xl md:text-2xl font-bold text-brand-blue mb-4">G-AI</h1>
+
+        <!-- Basic Tools -->
+        <div class="w-full space-y-3">
+            <button id="tool-select" class="tool-btn active w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Select & Move (V)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l5-2 2 8zM9 9l6 6" /></svg>
+                <span class="text-xs mt-1 hidden md:block">Select</span>
+            </button>
+            <button id="tool-point" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Point (P)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/></svg>
+                <span class="text-xs mt-1 hidden md:block">Point</span>
+            </button>
+            <button id="tool-line" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Line Segment (L)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" /></svg>
+                <span class="text-xs mt-1 hidden md:block">Segment</span>
+            </button>
+            <button id="tool-circle" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Circle (C)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span class="text-xs mt-1 hidden md:block">Circle</span>
+            </button>
+        </div>
+        
+        <hr class="w-full border-gray-600 my-4">
+
+        <!-- Construction Tools -->
+        <div class="w-full space-y-3">
+             <button id="tool-midpoint" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Midpoint (M)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l0 14"/></svg>
+                <span class="text-xs mt-1 hidden md:block">Midpoint</span>
+            </button>
+             <button id="tool-perp-bisector" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Perpendicular Bisector">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h6"/><path d="M12 9l0 6"/><path d="M3 12h2"/><path d="M19 12h2"/></svg>
+                <span class="text-xs mt-1 hidden md:block">Perp. Bisect</span>
+            </button>
+            <button id="tool-perpendicular" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Perpendicular Line">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                <span class="text-xs mt-1 hidden md:block">Perp. Line</span>
+            </button>
+            <button id="tool-angle-bisector" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Angle Bisector (B)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l16 8L4 4l16 8"/><path d="M4 12h8.5" stroke-dasharray="2 2"/></svg>
+                <span class="text-xs mt-1 hidden md:block">Angle Bisect</span>
+            </button>
+            <button id="tool-parallel" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Parallel Line">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15l16 0"/><path d="M4 9l16 0"/></svg>
+                <span class="text-xs mt-1 hidden md:block">Parallel</span>
+            </button>
+            <button id="tool-rotate" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Rotate by Angle (R)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 21a9 9 0 1 0-8.6-11.4M12 2v4"/><path d="M12 12l-4 2"/></svg>
+                <span class="text-xs mt-1 hidden md:block">Rotate</span>
+            </button>
+        </div>
+        
+        <hr class="w-full border-gray-600 my-4">
+
+        <!-- Measurement Tools -->
+        <div class="w-full space-y-3">
+            <!-- UNIFIED ANGLE TOOL -->
+            <button id="tool-angle" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Measure & Label Angle">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l16 8L4 4l16 8"/><path d="M10 10.5a1.5 1.5 0 0 1 3 0"/></svg>
+                <span class="text-xs mt-1 hidden md:block">Angle</span>
+            </button>
+            <button id="tool-measure-length" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Measure Length">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/><path d="M4 10v4"/><path d="M20 10v4"/><path d="M8 8l-2 2 2 2"/><path d="M16 8l2 2-2 2"/></svg>
+                <span class="text-xs mt-1 hidden md:block">Length</span>
+            </button>
+        </div>
+
+        <!-- Spacer -->
+        <div class="flex-grow"></div>
+
+        <!-- Utility Tools -->
+        <div class="w-full space-y-3">
+             <button id="tool-undo" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Undo (Ctrl+Z)" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 15l-3-3m0 0l3-3m-3 3h8a5 5 0 015 5v1" /></svg>
+                <span class="text-xs mt-1 hidden md:block">Undo</span>
+            </button>
+            <button id="tool-redo" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Redo (Ctrl+Y)" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 15l3-3m0 0l-3-3m3 3H5a5 5 0 00-5 5v1" /></svg>
+                <span class="text-xs mt-1 hidden md:block">Redo</span>
+            </button>
+             <button id="tool-delete" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Delete (Delete/Backspace)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                <span class="text-xs mt-1 hidden md:block">Delete</span>
+            </button>
+            <button id="tool-clear" class="tool-btn w-full p-3 rounded-lg flex flex-col items-center" data-tooltip="Clear All">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 11l4 4"/><path d="M12 11l-4 4"/></svg>
+                <span class="text-xs mt-1 hidden md:block">Clear</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- ============================================= -->
+    <!-- Main Content (Canvas) -->
+    <!-- ============================================= -->
+    <main class="flex-1 bg-gray-700 relative overflow-hidden">
+        
+        <canvas id="geometry-canvas"></canvas>
+        
+        <!-- Status message overlay -->
+        <div id="status-message" class="absolute top-4 left-1/2 -translate-x-1/2 bg-brand-blue text-white px-6 py-3 rounded-lg shadow-lg text-lg font-medium opacity-0 transition-opacity duration-300 pointer-events-none z-20">
+            Select 3 points for Angle Bisector
+        </div>
+        
+        <!-- Measurement overlay -->
+        <div id="measurement-display" class="absolute top-4 left-4 bg-gray-900 bg-opacity-70 text-white px-4 py-2 rounded-lg shadow-lg text-lg font-mono pointer-events-none z-20">
+            <!-- Content added by JS -->
+        </div>
+        
+        <!-- Sidebar Panel Toggle Button -->
+        <button id="toggle-sidebar-panel" class="absolute top-4 right-4 bg-gray-800 text-white p-3 rounded-lg shadow-lg z-20 tool-btn" data-tooltip-right="Toggle Assistant Panel">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+
+    </main>
+
+    <!-- ============================================= -->
+    <!-- Sidebar Panel (AI + Objects) -->
+    <!-- ============================================= -->
+    <aside id="sidebar-panel" class="absolute top-0 right-0 h-full w-80 md:w-96 bg-gray-800 bg-opacity-95 backdrop-blur-sm shadow-lg z-30 transform transition-transform duration-300 ease-in-out flex flex-col">
+        
+        <!-- Tab Buttons -->
+        <div class="flex border-b border-gray-600">
+            <button id="tab-btn-ai" class="tab-btn active">AI Solver</button>
+            <button id="tab-btn-objects" class="tab-btn">Object List</button>
+        </div>
+
+        <!-- AI Solver Tab -->
+        <div id="tab-content-ai" class="tab-content active p-4 space-y-3 flex-1 overflow-hidden">
+            <!-- Givens -->
+            <div>
+                <label for="given-notes" class="text-sm font-medium text-gray-300">Givens & Notes:</label>
+                <textarea id="given-notes" rows="4" class="w-full bg-gray-700 text-gray-100 p-2 rounded-md border border-gray-600 text-sm focus:outline-none focus:ring-1 focus:ring-brand-blue" placeholder="e.g., Given: Line AB is tangent to Circle O..."></textarea>
+            </div>
+            
+            <!-- Output Log -->
+            <div id="output-content" class="flex-1 p-3 bg-gray-900 rounded-md overflow-y-auto space-y-2 text-sm">
+                <p class="text-gray-400 italic">Welcome! Use 'Givens' for notes and the input below for questions or local checks (type 'help').</p>
+            </div>
+
+            <!-- Input & Actions -->
+            <div class="space-y-2">
+                <div class="flex items-center space-x-2">
+                    <span class="text-brand-blue font-semibold"> > </span>
+                    <input type="text" id="ai-command-input" class="flex-1 bg-gray-700 text-gray-100 px-3 py-2 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-blue" placeholder="Type question or local command (help)">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="ai-check-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-semibold px-4 py-2 rounded-md transition-colors" data-tooltip="Run local checks like 'find parallel'">
+                        Run Local Check
+                    </button>
+                    <button id="ai-solve-btn" class="bg-brand-green hover:bg-brand-green-dark text-white font-semibold px-4 py-2 rounded-md transition-colors flex items-center justify-center" data-tooltip="Use AI to solve based on givens and canvas facts">
+                        <svg id="solve-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17.25l.038-.038A5.25 5.25 0 0115.75 12a5.25 5.25 0 01-5.962 5.212zM9.75 17.25v-.009" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3.75l.038.038A5.25 5.25 0 018.25 9a5.25 5.25 0 015.962-5.212zM14.25 3.75v.009" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 14.25l.038-.038A5.25 5.25 0 019.75 9a5.25 5.25 0 01-5.962 5.212zM3.75 14.25v-.009" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 9.75l-.038.038A5.25 5.25 0 0113.5 15a5.25 5.25 0 015.962-5.212zM19.5 9.75v.009" />
+                        </svg>
+                        <svg id="solve-spinner" class="animate-spin h-5 w-5 mr-2 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Solve with AI
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Object List Tab -->
+        <div id="tab-content-objects" class="tab-content p-4 flex-1 overflow-auto">
+            <div id="object-panel-list" class="space-y-2 text-sm">
+                <!-- Content dynamically generated by JS -->
+                <p class="text-gray-400 italic">No objects on canvas.</p>
+            </div>
+        </div>
+
+    </aside>
+
+    <!-- ============================================= -->
+    <!-- JavaScript Logic -->
+    <!-- ============================================= -->
+    <script type="module">
+        // --- Constants ---
+        const SNAP_THRESHOLD = 15; // pixels
+        const POINT_RADIUS = 6;
+        const LINE_WIDTH = 2;
+        const SELECT_COLOR = '#2196F3'; // brand-blue
+        const DEFAULT_COLOR = '#E5E7EB'; // gray-200
+        const LABEL_COLOR = '#E5E7EB';
+        const LABEL_FONT = '14px Inter';
+        const GHOST_COLOR = 'rgba(255, 255, 255, 0.4)';
+        const MEASUREMENT_COLOR = '#67E8F9'; // cyan-300
+        const ANGLE_TOLERANCE_DEG = 0.1; // For right angle check
+        const LENGTH_TOLERANCE_PX = 0.5; // For isosceles/equilateral check
+        const SLOPE_TOLERANCE = 0.001; // For parallel/perp check
+        const TANGENT_TOLERANCE = 0.5; // For tangent check
+        const ANGLE_LABEL_DIST = 35; // Distance from vertex for angle label
+
+        // --- Utility Classes & Functions ---
+
+        class Vec2 {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+            static fromEvent(e, canvas) {
+                const rect = canvas.getBoundingClientRect();
+                return new Vec2(e.clientX - rect.left, e.clientY - rect.top);
+            }
+            distanceTo(v) { return Math.sqrt((this.x - v.x) ** 2 + (this.y - v.y) ** 2); }
+            add(v) { return new Vec2(this.x + v.x, this.y + v.y); }
+            subtract(v) { return new Vec2(this.x - v.x, this.y - v.y); }
+            multiply(scalar) { return new Vec2(this.x * scalar, this.y * scalar); }
+            normalize() {
+                const mag = this.magnitude();
+                if (mag === 0) return new Vec2(0, 0);
+                return new Vec2(this.x / mag, this.y / mag);
+            }
+            magnitude() { return Math.sqrt(this.x ** 2 + this.y ** 2); }
+            dot(v) { return this.x * v.x + this.y * v.y; }
+            equals(v) { return this.x === v.x && this.y === v.y; }
+        }
+
+        class LabelGenerator {
+            constructor() { this.count = 0; }
+            next() {
+                let label = '';
+                let n = this.count++;
+                do {
+                    label = String.fromCharCode(65 + (n % 26)) + label;
+                    n = Math.floor(n / 26) - 1;
+                } while (n >= 0);
+                return label;
+            }
+            reset() { this.count = 0; }
+        }
+        
+        const pointLabelGenerator = new LabelGenerator();
+
+        // --- Geometry Object Classes ---
+
+        class Point {
+            constructor(x, y, label = null) {
+                this.pos = new Vec2(x, y);
+                this.label = label || pointLabelGenerator.next();
+                this.type = 'point';
+                this.selected = false;
+                this.id = crypto.randomUUID();
+            }
+            get name() { return `Point ${this.label}`; }
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.arc(this.pos.x, this.pos.y, POINT_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = this.selected ? SELECT_COLOR : DEFAULT_COLOR;
+                ctx.fill();
+                ctx.fillStyle = LABEL_COLOR;
+                ctx.font = LABEL_FONT;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.label, this.pos.x + POINT_RADIUS + 5, this.pos.y);
+            }
+            isHit(pos) { return this.pos.distanceTo(pos) <= POINT_RADIUS + 2; }
+            move(dx, dy) {
+                this.pos.x += dx;
+                this.pos.y += dy;
+            }
+            // Check if point is within a rectangular marquee
+            isInRect(min, max) {
+                return this.pos.x >= min.x && this.pos.x <= max.x &&
+                       this.pos.y >= min.y && this.pos.y <= max.y;
+            }
+        }
+
+        class Line {
+            constructor(p1, p2) {
+                this.p1 = p1;
+                this.p2 = p2;
+                this.type = 'line';
+                this.selected = false;
+                this.id = crypto.randomUUID();
+            }
+            get name() { return `Line ${this.p1.label}${this.p2.label}`; }
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.moveTo(this.p1.pos.x, this.p1.pos.y);
+                ctx.lineTo(this.p2.pos.x, this.p2.pos.y);
+                ctx.strokeStyle = this.selected ? SELECT_COLOR : DEFAULT_COLOR;
+                ctx.lineWidth = LINE_WIDTH;
+                ctx.stroke();
+            }
+            isHit(pos) {
+                const l2 = this.lengthSquared();
+                if (l2 === 0) return pos.distanceTo(this.p1.pos) <= POINT_RADIUS;
+                let t = ((pos.x - this.p1.pos.x) * (this.p2.pos.x - this.p1.pos.x) + (pos.y - this.p1.pos.y) * (this.p2.pos.y - this.p1.pos.y)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                const projection = { x: this.p1.pos.x + t * (this.p2.pos.x - this.p1.pos.x), y: this.p1.pos.y + t * (this.p2.pos.y - this.p1.pos.y) };
+                return pos.distanceTo(new Vec2(projection.x, projection.y)) <= LINE_WIDTH + 3;
+            }
+            // Check if line (i.e., its endpoints) is within a rectangular marquee
+            isInRect(min, max) {
+                return this.p1.isInRect(min, max) && this.p2.isInRect(min, max);
+            }
+            length() { return this.p1.pos.distanceTo(this.p2.pos); }
+            lengthSquared() { return (this.p1.pos.x - this.p2.pos.x) ** 2 + (this.p1.pos.y - this.p2.pos.y) ** 2; }
+            slope() {
+                const dx = this.p2.pos.x - this.p1.pos.x;
+                const dy = this.p2.pos.y - this.p1.pos.y;
+                if (Math.abs(dx) < SLOPE_TOLERANCE) return Infinity;
+                return dy / dx;
+            }
+            // Perpendicular distance from a point (Vec2) to this line segment
+            distanceToPoint(point) {
+                const l2 = this.lengthSquared();
+                if (l2 === 0) return point.distanceTo(this.p1.pos);
+                // For tangency, we need distance to the *infinite line* defined by p1 and p2.
+                const A = this.p2.pos.y - this.p1.pos.y;
+                const B = this.p1.pos.x - this.p2.pos.x;
+                const C = (this.p2.pos.x * this.p1.pos.y) - (this.p1.pos.x * this.p2.pos.y);
+                
+                return Math.abs(A * point.x + B * point.y + C) / Math.sqrt(A * A + B * B);
+            }
+        }
+        
+        class Circle {
+            constructor(center, radiusPoint) {
+                this.center = center;
+                this.radiusPoint = radiusPoint;
+                this.type = 'circle';
+                this.selected = false;
+                this.id = crypto.randomUUID();
+            }
+            get radius() { return this.center.pos.distanceTo(this.radiusPoint.pos); }
+            get name() { return `Circle (Center ${this.center.label})`; }
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.arc(this.center.pos.x, this.center.pos.y, this.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = this.selected ? SELECT_COLOR : DEFAULT_COLOR;
+                ctx.lineWidth = LINE_WIDTH;
+                ctx.stroke();
+            }
+            isHit(pos) {
+                const dist = this.center.pos.distanceTo(pos);
+                return Math.abs(dist - this.radius) <= LINE_WIDTH + 3;
+            }
+            // Check if circle (i.e., its center) is within a rectangular marquee
+            isInRect(min, max) {
+                return this.center.isInRect(min, max);
+            }
+        }
+        
+        class AngleLabel {
+            constructor(p1, pVertex, p2, label) {
+                this.p1 = p1;
+                this.pVertex = pVertex;
+                this.p2 = p2;
+                this.label = label;
+                this.type = 'angleLabel';
+                this.selected = false;
+                this.id = crypto.randomUUID();
+            }
+            
+            get name() { return `Angle Label (∠${this.p1.label}${this.pVertex.label}${this.p2.label}) = ${this.label}`; }
+            
+            draw(ctx) {
+                const v = this.pVertex.pos;
+                const v1 = this.p1.pos.subtract(v).normalize();
+                const v2 = this.p2.pos.subtract(v).normalize();
+                
+                // Don't draw if vectors are invalid
+                if (v1.magnitude() === 0 || v2.magnitude() === 0) return;
+
+                // Calculate bisector vector
+                let bisector = v1.add(v2).normalize();
+                if (bisector.magnitude() === 0) { // Happens if vectors are 180 degrees apart
+                    bisector = new Vec2(-v1.y, v1.x); // Perpendicular vector
+                }
+                
+                // Calculate text position
+                const textPos = v.add(bisector.multiply(ANGLE_LABEL_DIST));
+                
+                ctx.fillStyle = this.selected ? SELECT_COLOR : MEASUREMENT_COLOR;
+                ctx.font = LABEL_FONT;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.label, textPos.x, textPos.y);
+                
+                // Draw angle arc
+                const arcRadius = ANGLE_LABEL_DIST / 2;
+                const startAngle = Math.atan2(v1.y, v1.x);
+                const endAngle = Math.atan2(v2.y, v2.x);
+
+                ctx.strokeStyle = this.selected ? SELECT_COLOR : MEASUREMENT_COLOR;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(v.x, v.y, arcRadius, startAngle, endAngle);
+                ctx.stroke();
+            }
+            
+            isHit(pos) {
+                // Simple hit check: is the click near the text position?
+                const v = this.pVertex.pos;
+                const v1 = this.p1.pos.subtract(v).normalize();
+                const v2 = this.p2.pos.subtract(v).normalize();
+                if (v1.magnitude() === 0 || v2.magnitude() === 0) return false;
+                let bisector = v1.add(v2).normalize();
+                if (bisector.magnitude() === 0) bisector = new Vec2(-v1.y, v1.x);
+                
+                const textPos = v.add(bisector.multiply(ANGLE_LABEL_DIST));
+                return pos.distanceTo(textPos) <= 15; // 15px radius around text
+            }
+
+            // Check if label (i.e., its vertex) is within a rectangular marquee
+            isInRect(min, max) {
+                return this.pVertex.isInRect(min, max);
+            }
+        }
+
+        // --- History / Command Pattern ---
+
+        class AddObjectsCommand {
+            constructor(app, objects) {
+                this.app = app;
+                this.objects = Array.isArray(objects) ? objects : [objects];
+            }
+            execute() { this.objects.forEach(obj => this.app.objects.push(obj)); }
+            undo() { this.objects.forEach(obj => { const i = this.app.objects.findIndex(o => o.id === obj.id); if (i > -1) this.app.objects.splice(i, 1); }); }
+        }
+        
+        class DeleteObjectsCommand {
+            constructor(app, objects) {
+                this.app = app;
+                this.objects = Array.isArray(objects) ? objects : [objects];
+            }
+            execute() { this.objects.forEach(obj => { const i = this.app.objects.findIndex(o => o.id === obj.id); if (i > -1) this.app.objects.splice(i, 1); }); }
+            undo() { this.objects.forEach(obj => this.app.objects.push(obj)); }
+        }
+        
+        class MoveObjectsCommand {
+            constructor(app, objects, dx, dy) {
+                this.app = app;
+                this.objects = objects;
+                this.dx = dx;
+                this.dy = dy;
+            }
+            execute() { this.objects.forEach(obj => obj.move(this.dx, this.dy)); }
+            undo() { this.objects.forEach(obj => obj.move(-this.dx, -this.dy)); }
+        }
+
+        // --- Main Application Class ---
+        
+        class GeometryApp {
+            constructor() {
+                this.canvas = document.getElementById('geometry-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // UI Elements
+                this.outputContent = document.getElementById('output-content');
+                this.statusMessage = document.getElementById('status-message');
+                this.measurementDisplay = document.getElementById('measurement-display');
+                this.toolButtons = document.querySelectorAll('.tool-btn');
+                this.undoBtn = document.getElementById('tool-undo');
+                this.redoBtn = document.getElementById('tool-redo');
+                
+                // AI Panel Elements
+                this.aiCommandInput = document.getElementById('ai-command-input');
+                this.aiCheckBtn = document.getElementById('ai-check-btn');
+                this.aiSolveBtn = document.getElementById('ai-solve-btn');
+                this.solveIcon = document.getElementById('solve-icon');
+                this.solveSpinner = document.getElementById('solve-spinner');
+                
+                // Sidebar & Tab Elements
+                this.sidebarPanel = document.getElementById('sidebar-panel');
+                this.objectPanelList = document.getElementById('object-panel-list');
+                this.toggleSidebarPanelBtn = document.getElementById('toggle-sidebar-panel');
+                this.tabBtnAi = document.getElementById('tab-btn-ai');
+                this.tabBtnObjects = document.getElementById('tab-btn-objects');
+                this.tabContentAi = document.getElementById('tab-content-ai');
+                this.tabContentObjects = document.getElementById('tab-content-objects');
+
+                // State
+                this.objects = [];
+                this.selection = [];
+                this.currentTool = 'select';
+                this.isDrawing = false;
+                this.startPos = null;
+                this.currentPos = null;
+                this.isDragging = false;
+                this.dragStartPos = null;
+                this.constructionStep = 0;
+                this.tempPoints = [];
+                this.tempObjects = [];
+                this.undoStack = [];
+                this.redoStack = [];
+                
+                // Marquee Select State
+                this.isMarqueeSelecting = false;
+                this.marqueeStartPos = null;
+                this.marqueeEndPos = null;
+
+                this.setupCanvas();
+                new ResizeObserver(() => this.resizeCanvas()).observe(this.canvas.parentElement);
+                
+                this.initListeners();
+                this.drawLoop();
+            }
+            
+            setupCanvas() {
+                const dpr = window.devicePixelRatio || 1;
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                this.canvas.width = rect.width * dpr;
+                this.canvas.height = rect.height * dpr;
+                this.ctx.scale(dpr, dpr);
+                this.canvas.style.width = `${rect.width}px`;
+                this.canvas.style.height = `${rect.height}px`;
+            }
+            
+            resizeCanvas() { this.setupCanvas(); }
+
+            initListeners() {
+                this.canvas.addEventListener('pointerdown', this.onPointerDown.bind(this));
+                this.canvas.addEventListener('pointermove', this.onPointerMove.bind(this));
+                this.canvas.addEventListener('pointerup', this.onPointerUp.bind(this));
+                this.canvas.addEventListener('pointerleave', this.onPointerLeave.bind(this));
+                
+                this.toolButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const tool = btn.id.replace('tool-', '');
+                        if (tool === 'clear') { if (confirm('Clear canvas?')) this.clearCanvas(); return; }
+                        if (tool === 'delete') { this.deleteSelection(); return; }
+                        if (tool === 'undo') { this.undo(); return; }
+                        if (tool === 'redo') { this.redo(); return; }
+                        this.setTool(tool);
+                    });
+                });
+
+                window.addEventListener('keydown', this.onKeyDown.bind(this));
+
+                // AI Panel Listeners
+                this.aiCheckBtn.addEventListener('click', this.handleAICheckCommand.bind(this));
+                this.aiSolveBtn.addEventListener('click', this.handleAISolveCommand.bind(this));
+                this.aiCommandInput.addEventListener('keydown', (e) => { 
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this.handleAISolveCommand(); 
+                    }
+                });
+                
+                // Sidebar & Tab Listeners
+                this.toggleSidebarPanelBtn.addEventListener('click', () => this.sidebarPanel.classList.toggle('hidden'));
+                
+                this.tabBtnAi.addEventListener('click', () => this.setActiveTab('ai'));
+                this.tabBtnObjects.addEventListener('click', () => this.setActiveTab('objects'));
+            }
+
+            // --- History Management ---
+            
+            executeCommand(command) {
+                command.execute();
+                this.undoStack.push(command);
+                this.redoStack = [];
+                this.updateHistoryButtons();
+                this.updateObjectList();
+            }
+            
+            undo() {
+                if (this.undoStack.length === 0) return;
+                const command = this.undoStack.pop();
+                command.undo();
+                this.redoStack.push(command);
+                this.updateHistoryButtons();
+                this.updateObjectList();
+            }
+            
+            redo() {
+                if (this.redoStack.length === 0) return;
+                const command = this.redoStack.pop();
+                command.execute();
+                this.undoStack.push(command);
+                this.updateHistoryButtons();
+                this.updateObjectList();
+            }
+            
+            updateHistoryButtons() {
+                this.undoBtn.disabled = this.undoStack.length === 0;
+                this.redoBtn.disabled = this.redoStack.length === 0;
+            }
+
+            // --- UI Management ---
+            
+            setActiveTab(tabName) {
+                if (tabName === 'ai') {
+                    this.tabBtnAi.classList.add('active');
+                    this.tabContentAi.classList.add('active');
+                    this.tabBtnObjects.classList.remove('active');
+                    this.tabContentObjects.classList.remove('active');
+                } else if (tabName === 'objects') {
+                    this.tabBtnAi.classList.remove('active');
+                    this.tabContentAi.classList.remove('active');
+                    this.tabBtnObjects.classList.add('active');
+                    this.tabContentObjects.classList.add('active');
+                }
+            }
+
+            updateObjectList() {
+                this.objectPanelList.innerHTML = '';
+                if (this.objects.length === 0) {
+                    this.objectPanelList.innerHTML = '<p class="text-gray-400 italic">No objects on canvas.</p>';
+                    return;
+                }
+
+                const grouped = this.objects.reduce((acc, obj) => {
+                    if (!acc[obj.type]) acc[obj.type] = [];
+                    acc[obj.type].push(obj);
+                    return acc;
+                }, {});
+
+                // Define categories and their display names
+                const categories = {
+                    'point': 'Points',
+                    'line': 'Segments & Lines',
+                    'circle': 'Circles',
+                    'angleLabel': 'Measurements & Labels'
+                };
+                
+                // Define the order
+                const types = ['point', 'line', 'circle', 'angleLabel'];
+
+                types.forEach(type => {
+                    if (grouped[type]) {
+                        const header = document.createElement('h3');
+                        header.className = 'font-semibold text-brand-blue capitalize mt-2 border-b border-gray-600';
+                        header.textContent = `${categories[type]} (${grouped[type].length})`;
+                        this.objectPanelList.appendChild(header);
+
+                        grouped[type].forEach(obj => {
+                            const item = document.createElement('div');
+                            item.className = 'text-gray-300 hover:bg-gray-700 p-1 rounded-md';
+                            item.textContent = obj.name;
+                            this.objectPanelList.appendChild(item);
+                        });
+                    }
+                });
+            }
+
+            setTool(tool) {
+                this.constructionStep = 0;
+                this.tempPoints = [];
+                this.tempObjects = [];
+                this.clearSelection();
+                this.updateStatusMessage('');
+                this.measurementDisplay.textContent = '';
+                
+                this.currentTool = tool;
+                this.toolButtons.forEach(btn => btn.classList.toggle('active', btn.id === `tool-${tool}`));
+
+                switch (tool) {
+                    case 'line': case 'circle':
+                        this.updateStatusMessage(`Click to set start point`); break;
+                    case 'midpoint': case 'perp-bisector': case 'measure-length':
+                        this.updateStatusMessage(`Click to select first point (1/2)`); break;
+                    case 'angle-bisector': case 'angle': // Changed
+                        this.updateStatusMessage(`Click vertex point (1/3)`); break;
+                    case 'parallel': case 'perpendicular':
+                        this.updateStatusMessage(`Click to select a line (1/2)`); break;
+                    case 'rotate':
+                        this.updateStatusMessage(`Click point to rotate (1/3)`); break;
+                }
+            }
+
+            updateStatusMessage(msg) {
+                if (msg) {
+                    this.statusMessage.textContent = msg;
+                    this.statusMessage.style.opacity = '1';
+                } else {
+                    this.statusMessage.style.opacity = '0';
+                }
+            }
+            
+            clearCanvas() {
+                this.objects = [];
+                this.selection = [];
+                this.isDrawing = false;
+                this.isDragging = false;
+                this.tempPoints = [];
+                this.tempObjects = [];
+                this.constructionStep = 0;
+                this.undoStack = [];
+                this.redoStack = [];
+                this.updateHistoryButtons();
+                this.updateObjectList();
+                pointLabelGenerator.reset();
+                this.logOutput('Canvas cleared.');
+            }
+
+            deleteSelection() {
+                if (this.selection.length === 0) return;
+                const toDelete = new Set(this.selection);
+                
+                // Cascade delete (e.g., deleting a point deletes lines attached to it)
+                this.objects.forEach(obj => {
+                    if (obj.type === 'line' && (toDelete.has(obj.p1) || toDelete.has(obj.p2))) toDelete.add(obj);
+                    if (obj.type === 'circle' && (toDelete.has(obj.center) || toDelete.has(obj.radiusPoint))) toDelete.add(obj);
+                    if (obj.type === 'angleLabel' && (toDelete.has(obj.p1) || toDelete.has(obj.pVertex) || toDelete.has(obj.p2))) toDelete.add(obj);
+                });
+                
+                const objectsToDelete = Array.from(toDelete);
+                this.executeCommand(new DeleteObjectsCommand(this, objectsToDelete));
+                this.selection = [];
+                this.logOutput(`Deleted ${objectsToDelete.length} object(s).`);
+            }
+            
+            // --- Event Handlers ---
+
+            onPointerDown(e) {
+                e.preventDefault();
+                const pos = Vec2.fromEvent(e, this.canvas);
+                this.startPos = pos;
+                this.currentPos = pos;
+                const snappedPoint = this.getNearestPoint(pos, (this.currentTool === 'select' || this.currentTool === 'point') ? -1 : SNAP_THRESHOLD);
+
+                switch (this.currentTool) {
+                    case 'select':
+                        this.handleSelectDown(pos, e.shiftKey); break;
+                    case 'point':
+                        this.executeCommand(new AddObjectsCommand(this, new Point(pos.x, pos.y))); break;
+                    case 'line': case 'circle':
+                        this.isDrawing = true;
+                        this.tempPoints = [snappedPoint || new Point(pos.x, pos.y)];
+                        this.updateStatusMessage('Click or drag to set end point');
+                        break;
+                    case 'midpoint': case 'perp-bisector': case 'measure-length':
+                        this.handleTwoPointConstruction(snappedPoint); break;
+                    case 'angle-bisector': case 'angle': case 'rotate': // Changed
+                        this.handleThreePointConstruction(snappedPoint); break;
+                    case 'parallel': case 'perpendicular':
+                        this.handleLineAndPointConstruction(pos, snappedPoint); break;
+                }
+            }
+
+            onPointerMove(e) {
+                e.preventDefault();
+                const pos = Vec2.fromEvent(e, this.canvas);
+                this.currentPos = pos;
+
+                if (this.isDragging) {
+                    const dx = pos.x - this.startPos.x;
+                    const dy = pos.y - this.startPos.y;
+                    this.selection.forEach(obj => { if (obj.type === 'point') obj.move(dx, dy); });
+                    this.startPos = pos;
+                    return; 
+                }
+                
+                if (this.isMarqueeSelecting) {
+                    this.marqueeEndPos = pos;
+                }
+            }
+
+            onPointerUp(e) {
+                e.preventDefault();
+                const pos = Vec2.fromEvent(e, this.canvas);
+                const snappedPoint = this.getNearestPoint(pos, SNAP_THRESHOLD);
+                
+                if (this.isDragging) {
+                    this.isDragging = false;
+                    const dx = pos.x - this.dragStartPos.x;
+                    const dy = pos.y - this.dragStartPos.y;
+                    if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
+                        const movedPoints = this.selection.filter(obj => obj.type === 'point');
+                        movedPoints.forEach(obj => obj.move(-dx, -dy)); // Undo visual drag
+                        this.executeCommand(new MoveObjectsCommand(this, movedPoints, dx, dy));
+                    }
+                    this.dragStartPos = null;
+                    return;
+                }
+                
+                if (this.isMarqueeSelecting) {
+                    this.isMarqueeSelecting = false;
+                    this.selectObjectsInMarquee(this.marqueeStartPos, this.marqueeEndPos, e.shiftKey);
+                    this.marqueeStartPos = null;
+                    this.marqueeEndPos = null;
+                }
+                
+                if (this.isDrawing) {
+                    this.isDrawing = false;
+                    let p1 = this.tempPoints[0];
+                    let p2 = snappedPoint || new Point(pos.x, pos.y);
+                    const objectsToAdd = [];
+                    if (!this.objects.includes(p1)) objectsToAdd.push(p1);
+                    if (!this.objects.includes(p2)) objectsToAdd.push(p2);
+
+                    if (this.currentTool === 'line') objectsToAdd.push(new Line(p1, p2));
+                    else if (this.currentTool === 'circle') objectsToAdd.push(new Circle(p1, p2));
+                    
+                    if(objectsToAdd.length > 0) this.executeCommand(new AddObjectsCommand(this, objectsToAdd));
+                    this.tempPoints = [];
+                    this.updateStatusMessage('Click to set start point');
+                }
+            }
+
+            onPointerLeave(e) {
+                if (this.isDrawing) {
+                    this.isDrawing = false;
+                    this.tempPoints = [];
+                }
+                if (this.isDragging) this.onPointerUp(e);
+                if (this.isMarqueeSelecting) this.onPointerUp(e);
+            }
+
+            onKeyDown(e) {
+                if (e.target === this.aiCommandInput || e.target.id === 'given-notes') return;
+                if (e.ctrlKey || e.metaKey) {
+                    if (e.key === 'z') { e.preventDefault(); this.undo(); }
+                    if (e.key === 'y') { e.preventDefault(); this.redo(); }
+                }
+                switch(e.key) {
+                    case 'Escape': this.setTool('select'); break;
+                    case 'Delete': case 'Backspace': this.deleteSelection(); break;
+                    case 'v': this.setTool('select'); break;
+                    case 'p': this.setTool('point'); break;
+                    case 'l': this.setTool('line'); break;
+                    case 'c': this.setTool('circle'); break;
+                    case 'b': this.setTool('angle-bisector'); break;
+                    case 'm': this.setTool('midpoint'); break;
+                    case 'r': this.setTool('rotate'); break;
+                }
+            }
+
+            // --- Selection & Dragging ---
+
+            handleSelectDown(pos, isShiftSelect) {
+                const hitObject = this.getHitObject(pos);
+                if (hitObject) {
+                    if (isShiftSelect) {
+                        if (this.selection.includes(hitObject)) {
+                            this.selection = this.selection.filter(obj => obj !== hitObject);
+                            hitObject.selected = false;
+                        } else {
+                            this.selection.push(hitObject);
+                            hitObject.selected = true;
+                        }
+                    } else {
+                        if (!this.selection.includes(hitObject)) {
+                            this.clearSelection();
+                            this.selection.push(hitObject);
+                            hitObject.selected = true;
+                        }
+                    }
+                    this.isDragging = true;
+                    this.dragStartPos = pos;
+                } else {
+                    // This is new: Start marquee select if no object is hit
+                    if (!isShiftSelect) this.clearSelection();
+                    this.isMarqueeSelecting = true;
+                    this.marqueeStartPos = pos;
+                    this.marqueeEndPos = pos;
+                }
+            }
+            
+            selectObjectsInMarquee(pos1, pos2, isShiftSelect) {
+                const min = new Vec2(Math.min(pos1.x, pos2.x), Math.min(pos1.y, pos2.y));
+                const max = new Vec2(Math.max(pos1.x, pos2.x), Math.max(pos1.y, pos2.y));
+
+                if (!isShiftSelect) this.clearSelection();
+
+                const newlySelected = [];
+                this.objects.forEach(obj => {
+                    if (obj.isInRect(min, max)) {
+                        if (isShiftSelect) {
+                            obj.selected = !obj.selected; // Toggle
+                        } else {
+                            obj.selected = true;
+                        }
+                    }
+                    if (obj.selected) {
+                        newlySelected.push(obj);
+                    }
+                });
+                this.selection = newlySelected;
+            }
+            
+            clearSelection() {
+                this.selection.forEach(obj => obj.selected = false);
+                this.selection = [];
+            }
+            
+            getHitObject(pos) {
+                // Prioritize points
+                for (let i = this.objects.length - 1; i >= 0; i--) { const obj = this.objects[i]; if (obj.type === 'point' && obj.isHit(pos)) return obj; }
+                // Then labels
+                for (let i = this.objects.length - 1; i >= 0; i--) { const obj = this.objects[i]; if (obj.type === 'angleLabel' && obj.isHit(pos)) return obj; }
+                // Then lines/circles
+                for (let i = this.objects.length - 1; i >= 0; i--) { const obj = this.objects[i]; if (obj.type !== 'point' && obj.type !== 'angleLabel' && obj.isHit(pos)) return obj; }
+                return null;
+            }
+            
+            getNearestPoint(pos, threshold = SNAP_THRESHOLD) {
+                let nearest = null, minDist = threshold;
+                for (const obj of this.objects) {
+                    if (obj.type === 'point') {
+                        const dist = obj.pos.distanceTo(pos);
+                        if (dist < minDist) { minDist = dist; nearest = obj; }
+                    }
+                }
+                return nearest;
+            }
+
+            // --- Construction Logic ---
+
+            handleTwoPointConstruction(snappedPoint) {
+                if (!snappedPoint) { if (!this.currentTool.startsWith('measure')) this.updateStatusMessage('Please click on an existing point.'); return; }
+                this.tempPoints.push(snappedPoint);
+                this.constructionStep++;
+
+                if (this.constructionStep === 1) this.updateStatusMessage('Click to select second point (2/2)');
+                else if (this.constructionStep === 2) {
+                    const [p1, p2] = this.tempPoints;
+                    if (this.currentTool === 'midpoint') {
+                        const midPos = p1.pos.add(p2.pos).multiply(0.5);
+                        this.executeCommand(new AddObjectsCommand(this, new Point(midPos.x, midPos.y)));
+                        this.logOutput(`Constructed midpoint of ${p1.label}${p2.label}`);
+                    } else if (this.currentTool === 'perp-bisector') {
+                        const midPos = p1.pos.add(p2.pos).multiply(0.5);
+                        const vec = p2.pos.subtract(p1.pos).normalize();
+                        const perpVec = new Vec2(-vec.y, vec.x).multiply(100);
+                        const p3 = new Point(midPos.x + perpVec.x, midPos.y + perpVec.y);
+                        const p4 = new Point(midPos.x - perpVec.x, midPos.y - perpVec.y);
+                        this.executeCommand(new AddObjectsCommand(this, [p3, p4, new Line(p3, p4)]));
+                        this.logOutput(`Constructed perpendicular bisector of ${p1.label}${p2.label}`);
+                    } else if (this.currentTool === 'measure-length') {
+                        const len = p1.pos.distanceTo(p2.pos);
+                        this.measurementDisplay.textContent = `Length(${p1.label}, ${p2.label}) = ${len.toFixed(2)} px`;
+                        this.logOutput(`Measured length of ${p1.label}${p2.label}: ${len.toFixed(2)} px`);
+                    }
+                    this.tempPoints = []; this.constructionStep = 0; this.updateStatusMessage('Click to select first point (1/2)');
+                }
+            }
+            
+            handleThreePointConstruction(snappedPoint) {
+                if (!snappedPoint) { this.updateStatusMessage('Please click on an existing point.'); return; }
+                this.tempPoints.push(snappedPoint);
+                this.constructionStep++;
+
+                if (this.constructionStep === 1) {
+                    if (this.currentTool === 'rotate') this.updateStatusMessage('Click center point (2/3)');
+                    else this.updateStatusMessage('Click point on first ray (2/3)');
+                } else if (this.constructionStep === 2) {
+                    if (this.currentTool === 'rotate') {
+                        const [pToRotate, pCenter] = this.tempPoints;
+                        const angleDeg = parseFloat(prompt('Enter angle in degrees (e.g., 45):', '45'));
+                        if (isNaN(angleDeg)) {
+                            this.logOutput('Invalid angle. Rotation cancelled.', 'error');
+                            this.tempPoints = []; this.constructionStep = 0; this.updateStatusMessage('Click point to rotate (1/3)');
+                            return;
+                        }
+                        
+                        const angleRad = angleDeg * (Math.PI / 180);
+                        const p = pToRotate.pos.subtract(pCenter.pos); // Vector to rotate
+                        const newX = p.x * Math.cos(angleRad) - p.y * Math.sin(angleRad);
+                        const newY = p.x * Math.sin(angleRad) + p.y * Math.cos(angleRad);
+                        const newPos = new Vec2(newX, newY).add(pCenter.pos);
+                        
+                        this.executeCommand(new AddObjectsCommand(this, new Point(newPos.x, newPos.y)));
+                        this.logOutput(`Rotated ${pToRotate.label} around ${pCenter.label} by ${angleDeg}°`);
+                        this.tempPoints = []; this.constructionStep = 0; this.updateStatusMessage('Click point to rotate (1/3)');
+                    } else {
+                        this.updateStatusMessage('Click point on second ray (3/3)');
+                    }
+                } else if (this.constructionStep === 3) {
+                    const [pVertex, p1, p2] = this.tempPoints;
+                    if (this.currentTool === 'angle-bisector') {
+                        const v = pVertex.pos, v1 = p1.pos.subtract(v).normalize(), v2 = p2.pos.subtract(v).normalize();
+                        const angleBisectorVec = v1.add(v2).normalize().multiply(150);
+                        const pEnd = new Point(v.x + angleBisectorVec.x, v.y + angleBisectorVec.y);
+                        this.executeCommand(new AddObjectsCommand(this, [pEnd, new Line(pVertex, pEnd)]));
+                        this.logOutput(`Constructed angle bisector for ∠${p1.label}${pVertex.label}${p2.label}`);
+                    } else if (this.currentTool === 'angle') { // Merged tool
+                        const angle = this.getAngle(p1, pVertex, p2);
+                        const label = prompt(`Enter label for angle ∠${p1.label}${pVertex.label}${p2.label}:`, angle.toFixed(1) + "°");
+                        if (label) {
+                            this.executeCommand(new AddObjectsCommand(this, new AngleLabel(p1, pVertex, p2, label)));
+                            this.logOutput(`Added label "${label}" to ∠${p1.label}${pVertex.label}${p2.label}`);
+                        }
+                    }
+                    this.tempPoints = []; this.constructionStep = 0; this.updateStatusMessage('Click vertex point (1/3)');
+                }
+            }
+
+            handleLineAndPointConstruction(pos, snappedPoint) {
+                if (this.constructionStep === 0) {
+                    const hitObject = this.getHitObject(pos);
+                    if (hitObject && hitObject.type === 'line') {
+                        this.tempObjects.push(hitObject);
+                        this.constructionStep = 1;
+                        this.updateStatusMessage('Click a point (2/2)');
+                    } else this.updateStatusMessage('Please click on an existing line.');
+                } else if (this.constructionStep === 1) {
+                    const point = snappedPoint || new Point(pos.x, pos.y);
+                    const line = this.tempObjects[0];
+                    const objectsToAdd = [];
+                    if (!snappedPoint) objectsToAdd.push(point);
+                    
+                    if (this.currentTool === 'parallel') {
+                        const lineVec = line.p2.pos.subtract(line.p1.pos).multiply(0.5);
+                        const p3 = new Point(point.pos.x + lineVec.x, point.pos.y + lineVec.y);
+                        const p4 = new Point(point.pos.x - lineVec.x, point.pos.y - lineVec.y);
+                        objectsToAdd.push(p3, p4, new Line(p3, p4));
+                        this.logOutput(`Constructed line parallel to ${line.name} through ${point.label}`);
+                    } else if (this.currentTool === 'perpendicular') {
+                        const lineVec = line.p2.pos.subtract(line.p1.pos).normalize();
+                        const perpVec = new Vec2(-lineVec.y, lineVec.x).multiply(100);
+                        const p3 = new Point(point.pos.x + perpVec.x, point.pos.y + perpVec.y);
+                        const p4 = new Point(point.pos.x - perpVec.x, point.pos.y - perpVec.y);
+                        objectsToAdd.push(p3, p4, new Line(p3, p4));
+                        this.logOutput(`Constructed line perpendicular to ${line.name} through ${point.label}`);
+                    }
+                    
+                    if(objectsToAdd.length > 0) this.executeCommand(new AddObjectsCommand(this, objectsToAdd));
+                    this.tempPoints = []; this.tempObjects = []; this.constructionStep = 0; this.updateStatusMessage('Click to select a line (1/2)');
+                }
+            }
+
+            // --- AI Analysis Engine ---
+
+            handleAICheckCommand() {
+                const commandText = this.aiCommandInput.value.trim().toLowerCase();
+                if (commandText === '') return;
+                this.logOutput(`> LOCAL CHECK: ${commandText}`, 'info');
+                // this.aiCommandInput.value = ''; // Don't clear, user might want to solve this
+
+                switch(commandText) {
+                    case 'help':
+                        this.logOutput('--- Local Checks Help ---', 'info');
+                        this.logOutput("`find parallel` - Finds all parallel lines.");
+                        this.logOutput("`find perpendicular` - Finds all perpendicular lines.");
+                        this.logOutput("`find triangles` - Finds all Right, Isosceles, or Equilateral triangles.");
+                        this.logOutput("`check congruency` - Select 2 triangles, then run this command.");
+                        this.logOutput("`check tangent` - Select 1 line and 1 circle, then run this command.");
+                        this.logOutput("`clear log` - Clears this output log.");
+                        break;
+                    case 'clear log':
+                        this.outputContent.innerHTML = '<p class="text-gray-400 italic">Log cleared.</p>'; break;
+                    case 'find parallel': this.analyzeParallelLines(); break;
+                    case 'find perpendicular': this.analyzePerpendicularLines(); break;
+                    case 'find triangles': this.analyzeAllTriangles(); break;
+                    case 'check congruency': this.analyzeCongruency(); break;
+                    case 'check tangent': this.analyzeTangent(); break;
+                    default:
+                        this.logOutput(`Unknown local command: "${commandText}". Type 'help' for a list, or type a question and hit 'Solve with AI'.`, 'error');
+                }
+            }
+            
+            async handleAISolveCommand() {
+                const question = this.aiCommandInput.value.trim();
+                const givens = document.getElementById('given-notes').value.trim();
+                
+                if (question === '') {
+                    this.logOutput('Please type a question into the command bar before hitting Solve.', 'error');
+                    return;
+                }
+
+                this.logOutput(`> AI SOLVE: ${question}`, 'info');
+                this.logOutput('Gathering canvas facts and contacting AI. This may take a moment...', 'italic');
+
+                // Toggle loading state
+                this.aiSolveBtn.disabled = true;
+                this.aiCheckBtn.disabled = true;
+                this.solveIcon.classList.add('hidden');
+                this.solveSpinner.classList.remove('hidden');
+
+                const canvasFacts = this.gatherCanvasFacts();
+
+                const systemPrompt = `You are an expert geometry tutor and solver. Your task is to solve the user's question based on the "Givens" they provide and the "Canvas Facts" you have observed from their drawing.
+- **Givens:** These are statements the user has provided. Treat them as true.
+- **Canvas Facts:** These are geometric properties you have automatically detected from the canvas. Use them as supporting evidence.
+- **Question:** This is what you must answer.
+- **IMPORTANT:** Format your response in plain text. Do NOT use Markdown, LaTeX, \`$$\`, \`$\`, or backslashes (\`\\\`). Explain formulas and equations using words (e.g., "Area = base * height / 2" or "The angle is 45 degrees").
+- Provide a clear, step-by-step reasoning for your solution.
+- Be concise and to the point.
+- If you cannot solve the problem, explain why (e.g., "Not enough information").`;
+
+                const userQuery = `
+**Givens:**
+${givens || "None provided."}
+
+**Canvas Facts:**
+${canvasFacts || "None detected."}
+
+**Question:**
+${question}
+
+**Your Solution:**
+`;
+
+                try {
+                    const resultText = await this.fetchWithBackoff(systemPrompt, userQuery);
+                    this.logOutput(resultText, 'success');
+                } catch (error) {
+                    console.error('Error during AI Solve:', error);
+                    this.logOutput(`An error occurred while trying to solve: ${error.message}`, 'error');
+                }
+
+                // Toggle loading state off
+                this.aiSolveBtn.disabled = false;
+                this.aiCheckBtn.disabled = false;
+                this.solveIcon.classList.remove('hidden');
+                this.solveSpinner.classList.add('hidden');
+            }
+
+            async fetchWithBackoff(systemPrompt, userQuery, retries = 3, delay = 1000) {
+                const apiKey = "" // API key is handled by the environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    systemInstruction: {
+                        parts: [{ text: systemPrompt }]
+                    },
+                };
+
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                            const errorBody = await response.text();
+                            console.error("API Error Response:", errorBody);
+                            throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                        }
+
+                        const result = await response.json();
+                        const candidate = result.candidates?.[0];
+
+                        if (candidate && candidate.content?.parts?.[0]?.text) {
+                            return candidate.content.parts[0].text;
+                        } else {
+                            console.warn("Invalid response structure from AI:", result);
+                            let errorMsg = 'Invalid response structure from AI.';
+                            if (candidate && candidate.finishReason) {
+                                errorMsg += ` Finish Reason: ${candidate.finishReason}`;
+                            }
+                            if (result.promptFeedback && result.promptFeedback.blockReason) {
+                                errorMsg = `Request blocked. Reason: ${result.promptFeedback.blockReason}`;
+                            }
+                            throw new Error(errorMsg);
+                        }
+                    } catch (error) {
+                        console.error(`Attempt ${i+1} failed:`, error);
+                        if (i === retries - 1) throw error; // Re-throw last error
+                        await new Promise(res => setTimeout(res, delay * (2 ** i)));
+                    }
+                }
+            }
+            
+            gatherCanvasFacts() {
+                const facts = [];
+                const points = this.objects.filter(o => o.type === 'point');
+                const lines = this.objects.filter(o => o.type === 'line');
+                const circles = this.objects.filter(o => o.type === 'circle');
+                const labels = this.objects.filter(o => o.type === 'angleLabel');
+                const triangles = this.findTriangles('all');
+
+                facts.push(`- Canvas contains ${points.length} points, ${lines.length} lines, ${circles.length} circles, and ${triangles.length} triangles.`);
+
+                // Add label facts
+                labels.forEach(label => {
+                    facts.push(`- ${label.name}`);
+                });
+
+                // Find Parallel Lines
+                for (let i = 0; i < lines.length; i++) {
+                    for (let j = i + 1; j < lines.length; j++) {
+                        const l1 = lines[i], l2 = lines[j], s1 = l1.slope(), s2 = l2.slope();
+                        if (Math.abs(s1 - s2) < SLOPE_TOLERANCE) {
+                            facts.push(`- ${l1.name} || ${l2.name}`);
+                        }
+                    }
+                }
+                
+                // Find Perpendicular Lines
+                for (let i = 0; i < lines.length; i++) {
+                    for (let j = i + 1; j < lines.length; j++) {
+                        const l1 = lines[i], l2 = lines[j], s1 = l1.slope(), s2 = l2.slope();
+                        if ((s1 === Infinity && Math.abs(s2) < SLOPE_TOLERANCE) || (s2 === Infinity && Math.abs(s1) < SLOPE_TOLERANCE) || (Math.abs(s1 * s2 + 1) < SLOPE_TOLERANCE)) {
+                            facts.push(`- ${l1.name} ⊥ ${l2.name}`);
+                        }
+                    }
+                }
+                
+                // Find Triangle Properties
+                triangles.forEach(tri => {
+                    const angles = [this.getAngle(tri.points[0], tri.points[1], tri.points[2]), this.getAngle(tri.points[1], tri.points[0], tri.points[2]), this.getAngle(tri.points[2], tri.points[0], tri.points[1])];
+                    const sides = tri.lines.map(l => l.length());
+                    if (angles.some(a => Math.abs(a - 90) < ANGLE_TOLERANCE_DEG)) facts.push(`- ${tri.name} is a Right Triangle.`);
+                    const [s1, s2, s3] = sides;
+                    const isIso = (Math.abs(s1 - s2) < LENGTH_TOLERANCE_PX) || (Math.abs(s2 - s3) < LENGTH_TOLERANCE_PX) || (Math.abs(s1 - s3) < LENGTH_TOLERANCE_PX);
+                    const isEqui = (Math.abs(s1 - s2) < LENGTH_TOLERANCE_PX) && (Math.abs(s2 - s3) < LENGTH_TOLERANCE_PX);
+                    if (isEqui) facts.push(`- ${tri.name} is an Equilateral Triangle.`);
+                    else if (isIso) facts.push(`- ${tri.name} is an Isosceles Triangle.`);
+                });
+                
+                return facts.join('\n');
+            }
+
+            findTriangles(scope = 'all') {
+                const points = (scope === 'selection') ? this.selection.filter(o => o.type === 'point') : this.objects.filter(o => o.type === 'point');
+                const lines = (scope === 'selection') ? this.selection.filter(o => o.type === 'line') : this.objects.filter(o => o.type === 'line');
+                const triangles = [];
+                if (points.length < 3) return [];
+                for (let i = 0; i < points.length; i++) {
+                    for (let j = i + 1; j < points.length; j++) {
+                        for (let k = j + 1; k < points.length; k++) {
+                            const p1 = points[i], p2 = points[j], p3 = points[k];
+                            const l1 = this.findLine(lines, p1, p2), l2 = this.findLine(lines, p2, p3), l3 = this.findLine(lines, p3, p1);
+                            if (l1 && l2 && l3) triangles.push({ name: `Δ${p1.label}${p2.label}${p3.label}`, points: [p1, p2, p3], lines: [l1, l2, l3] });
+                        }
+                    }
+                }
+                return triangles;
+            }
+
+            findLine(lines, p1, p2) { return lines.find(l => (l.p1 === p1 && l.p2 === p2) || (l.p1 === p2 && l.p2 === p1)); }
+
+            analyzeTangent() {
+                const lines = this.selection.filter(o => o.type === 'line');
+                const circles = this.selection.filter(o => o.type === 'circle');
+                
+                if (lines.length !== 1 || circles.length !== 1) {
+                    this.logOutput('ANALYSIS: Please select exactly one line and one circle to check for tangency.', 'error');
+                    return;
+                }
+                
+                const line = lines[0];
+                const circle = circles[0];
+                this.logOutput(`ANALYSIS: Checking if ${line.name} is tangent to ${circle.name}...`, 'info');
+                
+                const dist = line.distanceToPoint(circle.center.pos);
+                
+                if (Math.abs(dist - circle.radius) < TANGENT_TOLERANCE) {
+                    this.logOutput(`RESULT: ${line.name} is TANGENT to ${circle.name}.`, 'success');
+                } else {
+                    this.logOutput(`RESULT: ${line.name} is NOT tangent to ${circle.name}. (Dist: ${dist.toFixed(2)}, Radius: ${circle.radius.toFixed(2)})`, 'warning');
+                }
+            }
+            
+            analyzeCongruency() {
+                const triangles = this.findTriangles('selection');
+                if (triangles.length < 2) {
+                    this.logOutput('ANALYSIS: Please select two triangles (6 points, 6 lines) *before* running this command.', 'error');
+                    this.setTool('select'); this.updateStatusMessage('Select two triangles.');
+                    return;
+                }
+                
+                const t1 = triangles[0], t2 = triangles[1];
+                this.logOutput(`ANALYSIS: Checking ${t1.name} and ${t2.name} for congruency...`, 'info');
+                const t1_sides = t1.lines.map(l => l.length()).sort((a,b) => a - b);
+                const t2_sides = t2.lines.map(l => l.length()).sort((a,b) => a - b);
+                const t1_angles = [this.getAngle(t1.points[0], t1.points[1], t1.points[2]), this.getAngle(t1.points[1], t1.points[0], t1.points[2]), this.getAngle(t1.points[2], t1.points[0], t1.points[1])].sort((a,b) => a - b);
+                const t2_angles = [this.getAngle(t2.points[0], t2.points[1], t2.points[2]), this.getAngle(t2.points[1], t2.points[0], t2.points[2]), this.getAngle(t2.points[2], t2.points[0], t2.points[1])].sort((a,b) => a - b);
+
+                const sidesEqual = t1_sides.every((s, i) => Math.abs(s - t2_sides[i]) < LENGTH_TOLERANCE_PX);
+                const anglesEqual = t1_angles.every((a, i) => Math.abs(a - t2_angles[i]) < ANGLE_TOLERANCE_DEG);
+                let found = false;
+                
+                if (sidesEqual) { this.logOutput(`RESULT: ${t1.name} ≅ ${t2.name} by SSS.`, 'success'); found = true; }
+                if (anglesEqual && t1_sides.some((s, i) => Math.abs(s - t2_sides[i]) < LENGTH_TOLERANCE_PX)) { this.logOutput(`RESULT: ${t1.name} ≅ ${t2.name} by ASA/AAS.`, 'success'); found = true; }
+                const twoSidesMatch = t1_sides.filter((s1, i) => Math.abs(s1 - t2_sides[i]) < LENGTH_TOLERANCE_PX).length >= 2;
+                const oneAngleMatch = t1_angles.filter((a1, i) => Math.abs(a1 - t2_angles[i]) < ANGLE_TOLERANCE_DEG).length >= 1;
+                if (twoSidesMatch && oneAngleMatch && !found) { this.logOutput(`RESULT: ${t1.name} ≅ ${t2.name} (Simplified check suggests SAS).`, 'success'); found = true; }
+                if (!found) this.logOutput(`RESULT: No simple congruency (SSS, ASA, AAS) found.`, 'warning');
+            }
+
+            analyzeAllTriangles() {
+                const triangles = this.findTriangles('all');
+                if (triangles.length === 0) { this.logOutput('ANALYSIS: No triangles found.', 'warning'); return; }
+                this.logOutput(`ANALYSIS: Found ${triangles.length} triangle(s). Checking properties...`, 'info');
+                let findings = 0;
+                triangles.forEach(tri => {
+                    const angles = [this.getAngle(tri.points[0], tri.points[1], tri.points[2]), this.getAngle(tri.points[1], tri.points[0], tri.points[2]), this.getAngle(tri.points[2], tri.points[0], tri.points[1])];
+                    const sides = tri.lines.map(l => l.length());
+                    if (angles.some(a => Math.abs(a - 90) < ANGLE_TOLERANCE_DEG)) { this.logOutput(`RESULT: ${tri.name} is a Right Triangle.`, 'success'); findings++; }
+                    const [s1, s2, s3] = sides;
+                    const isIso = (Math.abs(s1 - s2) < LENGTH_TOLERANCE_PX) || (Math.abs(s2 - s3) < LENGTH_TOLERANCE_PX) || (Math.abs(s1 - s3) < LENGTH_TOLERANCE_PX);
+                    const isEqui = (Math.abs(s1 - s2) < LENGTH_TOLERANCE_PX) && (Math.abs(s2 - s3) < LENGTH_TOLERANCE_PX);
+                    if (isEqui) { this.logOutput(`RESULT: ${tri.name} is an Equilateral Triangle.`, 'success'); findings++; }
+                    else if (isIso) { this.logOutput(`RESULT: ${tri.name} is an Isosceles Triangle.`, 'success'); findings++; }
+                });
+                if (findings === 0) this.logOutput('ANALYSIS: No special triangle properties found.');
+            }
+            
+            analyzeParallelLines() {
+                const lines = this.objects.filter(o => o.type === 'line');
+                if (lines.length < 2) { this.logOutput('ANALYSIS: Not enough lines to compare.', 'warning'); return; }
+                this.logOutput(`ANALYSIS: Checking ${lines.length} lines for parallel...`, 'info');
+                let findings = 0;
+                for (let i = 0; i < lines.length; i++) {
+                    for (let j = i + 1; j < lines.length; j++) {
+                        const l1 = lines[i], l2 = lines[j], s1 = l1.slope(), s2 = l2.slope();
+                        if (Math.abs(s1 - s2) < SLOPE_TOLERANCE) {
+                            this.logOutput(`RESULT: ${l1.name} || ${l2.name}`, 'success'); findings++;
+                        }
+                    }
+                }
+                if (findings === 0) this.logOutput('ANALYSIS: No parallel lines found.');
+            }
+            
+            analyzePerpendicularLines() {
+                const lines = this.objects.filter(o => o.type === 'line');
+                if (lines.length < 2) { this.logOutput('ANALYSIS: Not enough lines to compare.', 'warning'); return; }
+                this.logOutput(`ANALYSIS: Checking ${lines.length} lines for perpendicular...`, 'info');
+                let findings = 0;
+                for (let i = 0; i < lines.length; i++) {
+                    for (let j = i + 1; j < lines.length; j++) {
+                        const l1 = lines[i], l2 = lines[j], s1 = l1.slope(), s2 = l2.slope();
+                        if ((s1 === Infinity && Math.abs(s2) < SLOPE_TOLERANCE) || (s2 === Infinity && Math.abs(s1) < SLOPE_TOLERANCE) || (Math.abs(s1 * s2 + 1) < SLOPE_TOLERANCE)) {
+                            this.logOutput(`RESULT: ${l1.name} ⊥ ${l2.name}`, 'success'); findings++;
+                        }
+                    }
+                }
+                if (findings === 0) this.logOutput('ANALYSIS: No perpendicular lines found.');
+            }
+
+            getAngle(p1, pVertex, p2) {
+                const v1 = p1.pos.subtract(pVertex.pos), v2 = p2.pos.subtract(pVertex.pos);
+                const mag1 = v1.magnitude(), mag2 = v2.magnitude();
+                if (mag1 === 0 || mag2 === 0) return 0;
+                const cosTheta = v1.dot(v2) / (mag1 * mag2);
+                return Math.acos(Math.max(-1, Math.min(1, cosTheta))) * (180 / Math.PI);
+            }
+            
+            logOutput(message, type = 'default') {
+                const p = document.createElement('p');
+                p.className = 'text-gray-300'; // Default
+                switch(type) {
+                    case 'error': p.className = 'text-red-400'; break;
+                    case 'success': p.className = 'text-green-400'; break;
+                    case 'info': p.className = 'text-blue-400 italic'; break;
+                    case 'warning': p.className = 'text-yellow-400'; break;
+                }
+                
+                // Set text content directly to prevent HTML injection
+                // Then replace newlines with <br> for formatting
+                p.textContent = message;
+                p.innerHTML = p.innerHTML.replace(/\n/g, '<br>');
+
+                const initialMsg = this.outputContent.querySelector('p.text-gray-400.italic');
+                if (initialMsg) initialMsg.remove();
+                
+                this.outputContent.appendChild(p);
+                this.outputContent.scrollTop = this.outputContent.scrollHeight;
+            }
+
+            // --- Draw Loop ---
+
+            drawLoop() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                const viewWidth = this.canvas.clientWidth, viewHeight = this.canvas.clientHeight;
+                this.ctx.clearRect(0, 0, viewWidth, viewHeight);
+                
+                // Draw all objects
+                this.objects.forEach(obj => obj.draw(this.ctx));
+                
+                // Draw interactive ghosts
+                this.drawGhost();
+                this.drawSnapIndicator();
+                this.drawMeasurementGhost();
+                this.drawMarquee(); // Draw selection box
+                
+                requestAnimationFrame(this.drawLoop.bind(this));
+            }
+
+            drawGhost() {
+                if (!this.isDrawing || !this.currentPos || this.tempPoints.length === 0) return;
+                this.ctx.strokeStyle = GHOST_COLOR;
+                this.ctx.lineWidth = LINE_WIDTH;
+                this.ctx.setLineDash([5, 5]);
+                const p1 = this.tempPoints[0].pos;
+                const snapped = this.getNearestPoint(this.currentPos, SNAP_THRESHOLD);
+                const endPos = snapped ? snapped.pos : this.currentPos;
+                if (this.currentTool === 'line') {
+                    this.ctx.beginPath(); this.ctx.moveTo(p1.x, p1.y); this.ctx.lineTo(endPos.x, endPos.y); this.ctx.stroke();
+                } else if (this.currentTool === 'circle') {
+                    const radius = p1.distanceTo(endPos);
+                    this.ctx.beginPath(); this.ctx.arc(p1.x, p1.y, radius, 0, Math.PI * 2); this.ctx.stroke();
+                }
+                this.ctx.setLineDash([]);
+            }
+            
+            drawSnapIndicator() {
+                if (this.currentTool === 'select' || !this.currentPos) return;
+                const snappedPoint = this.getNearestPoint(this.currentPos, SNAP_THRESHOLD);
+                if (snappedPoint) {
+                    this.ctx.beginPath();
+                    this.ctx.arc(snappedPoint.pos.x, snappedPoint.pos.y, POINT_RADIUS + 4, 0, Math.PI * 2);
+                    this.ctx.strokeStyle = SELECT_COLOR; this.ctx.lineWidth = 1; this.ctx.stroke();
+                }
+            }
+
+            drawMeasurementGhost() {
+                // Simplified this to only check for 'angle'
+                if (!this.currentPos || this.constructionStep === 0 || !(this.currentTool === 'measure-length' || this.currentTool === 'angle')) return;
+                this.ctx.strokeStyle = MEASUREMENT_COLOR; this.ctx.fillStyle = MEASUREMENT_COLOR;
+                this.ctx.lineWidth = 1; this.ctx.setLineDash([3, 3]);
+                const snapped = this.getNearestPoint(this.currentPos, SNAP_THRESHOLD);
+                const endPos = snapped ? snapped.pos : this.currentPos;
+                
+                if (this.currentTool === 'measure-length' && this.constructionStep === 1) {
+                    const p1 = this.tempPoints[0].pos;
+                    this.ctx.beginPath(); this.ctx.moveTo(p1.x, p1.y); this.ctx.lineTo(endPos.x, endPos.y); this.ctx.stroke();
+                    const len = p1.distanceTo(endPos);
+                    this.measurementDisplay.textContent = `Length = ${len.toFixed(2)} px`;
+                } else if (this.currentTool === 'angle' && this.constructionStep > 0) { // Changed
+                    const pVertex = this.tempPoints[0].pos;
+                    this.ctx.beginPath(); this.ctx.moveTo(pVertex.x, pVertex.y); this.ctx.lineTo(endPos.x, endPos.y); this.ctx.stroke();
+                    if (this.constructionStep === 2) {
+                        const p1 = this.tempPoints[1].pos;
+                        this.ctx.beginPath(); this.ctx.moveTo(pVertex.x, pVertex.y); this.ctx.lineTo(p1.x, p1.y); this.ctx.stroke();
+                        const angle = this.getAngle({pos: endPos}, {pos: pVertex}, {pos: p1});
+                        this.measurementDisplay.textContent = `Angle = ${angle.toFixed(2)}°`;
+                    }
+                }
+                this.ctx.setLineDash([]);
+            }
+            
+            drawMarquee() {
+                if (!this.isMarqueeSelecting || !this.marqueeStartPos || !this.marqueeEndPos) return;
+                
+                const width = this.marqueeEndPos.x - this.marqueeStartPos.x;
+                const height = this.marqueeEndPos.y - this.marqueeStartPos.y;
+                
+                this.ctx.fillStyle = 'rgba(33, 150, 243, 0.2)'; // translucent blue
+                this.ctx.fillRect(this.marqueeStartPos.x, this.marqueeStartPos.y, width, height);
+                
+                this.ctx.strokeStyle = SELECT_COLOR;
+                this.ctx.lineWidth = 1;
+                this.ctx.setLineDash([3, 3]);
+                this.ctx.strokeRect(this.marqueeStartPos.x, this.marqueeStartPos.y, width, height);
+                this.ctx.setLineDash([]);
+            }
+        }
+        
+        // --- Initialize App ---
+        window.addEventListener('load', () => { new GeometryApp(); });
+
+    </script>
+</body>
+</html>
