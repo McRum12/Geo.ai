@@ -1265,7 +1265,23 @@ ${question}
             }
 
             async fetchWithBackoff(systemPrompt, userQuery, retries = 3, delay = 1000) {
-                const apiKey = "" // API key is handled by the environment
+                // --- MODIFICATION START ---
+                // Get API key from local storage, or prompt user if not found.
+                let apiKey = localStorage.getItem('GEMINI_API_KEY_GEOC'); // Use a specific key
+                if (!apiKey || apiKey === "null" || apiKey === "") {
+                    apiKey = prompt('Please enter your Google AI API Key to use the AI Solver.\nThis key will be stored in your browser\'s local storage for this site.\n\nNote: Do NOT share this key. It is best practice to run this from a secure backend, not from a public GitHub page.');
+                    if (apiKey) {
+                        localStorage.setItem('GEMINI_API_KEY_GEOC', apiKey);
+                    }
+                }
+
+                // If key is still missing, stop and throw an error.
+                if (!apiKey || apiKey === "null" || apiKey === "") {
+                    this.logOutput('API Key not provided. Cannot contact AI. Please refresh and enter your key when prompted.', 'error');
+                    throw new Error('API Key not provided by user.'); // This will be caught by handleAISolveCommand
+                }
+                // --- MODIFICATION END ---
+                
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
                 const payload = {
@@ -1471,7 +1487,7 @@ ${question}
                 this.logOutput(`ANALYSIS: Checking ${lines.length} lines for perpendicular...`, 'info');
                 let findings = 0;
                 for (let i = 0; i < lines.length; i++) {
-                    for (let j = i + 1; j < lines.length; j++) {
+                    for (let j = i + 1; j < lines.length; j_++) {
                         const l1 = lines[i], l2 = lines[j], s1 = l1.slope(), s2 = l2.slope();
                         if ((s1 === Infinity && Math.abs(s2) < SLOPE_TOLERANCE) || (s2 === Infinity && Math.abs(s1) < SLOPE_TOLERANCE) || (Math.abs(s1 * s2 + 1) < SLOPE_TOLERANCE)) {
                             this.logOutput(`RESULT: ${l1.name} ⊥ ${l2.name}`, 'success'); findings++;
